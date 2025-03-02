@@ -1,0 +1,109 @@
+version: "3.8"
+
+services:
+  ###################################
+  # 1) NestJS Service 1 (Backend API)
+  ###################################
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: backend
+    ports:
+      - "3001:3000"
+    environment:
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_USER: user
+      DB_PASSWORD: password
+      DB_NAME: nest_db
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      - db
+      - redis
+    networks:
+      - app-network
+
+  ###################################
+  # 2) NestJS Service 2 (Internal API)
+  ###################################
+  internal:
+    build:
+      context: ./internal
+      dockerfile: Dockerfile
+    container_name: internal
+    ports:
+      - "3002:3000"
+    environment:
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_USER: user
+      DB_PASSWORD: password
+      DB_NAME: nest_db
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      - db
+      - redis
+    networks:
+      - app-network
+
+  ###################################
+  # 3) React (Next.js) App
+  ###################################
+  react_app:
+    build:
+      context: ./react-app          # The folder where your Dockerfile lives
+      dockerfile: Dockerfile
+    container_name: react_app
+    ports:
+      - "3000:3000"
+    # Key part: volume mapping for hot reload
+    volumes:
+      - ./react-app:/usr/src/app    # Maps local code into container
+      - /usr/src/app/node_modules   # Ensures container uses its own node_modules
+    environment:
+      NEXT_PUBLIC_API_URL_1: http://backend:3000
+      NEXT_PUBLIC_API_URL_2: http://internal:3000
+    depends_on:
+      - backend
+      - internal
+    networks:
+      - app-network
+
+  ###################################
+  # 4) MySQL (Alpine)
+  ###################################
+  db:
+    image: mysql:8
+    container_name: db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: nest_db
+      MYSQL_USER: user
+      MYSQL_PASSWORD: password
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - app-network
+
+  ###################################
+  # 5) Redis (Alpine)
+  ###################################
+  redis:
+    image: redis:alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    networks:
+      - app-network
+
+networks:
+  app-network:
+
+volumes:
+  mysql_data:
